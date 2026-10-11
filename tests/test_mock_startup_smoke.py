@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi.testclient import TestClient
+from local_client import LocalTestClient as TestClient
 
 import llm_debate_hall.model_catalog as model_catalog
 from llm_debate_hall.main import create_app

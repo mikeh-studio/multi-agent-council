@@ -48,7 +48,7 @@ MULTI_AGENT_COUNCIL_ENABLE_CUSTOM_COMMANDS=true \
 uvicorn llm_debate_hall.main:app --reload
 ```
 
-This opt-in permits arbitrary local executable and environment overrides. Do not enable it for an app exposed to other users. `MULTI_AGENT_COUNCIL_ALLOW_REMOTE_ACCESS=true` disables the loopback-client check but does not add authentication; use it only behind a separately authenticated boundary.
+This opt-in permits arbitrary local executable and environment overrides. Do not enable it for an app exposed to other users. Remote access is unsupported; `MULTI_AGENT_COUNCIL_ALLOW_REMOTE_ACCESS=true` now fails startup. A remote deployment requires an actual authenticated design before it can be enabled.
 
 ## Provider Model Readiness
 
@@ -199,3 +199,11 @@ This project is mainly meant to run on your machine. It depends on locally insta
 ## Contributing
 
 Issues and ideas are welcome. Treat the repo as experimental: behavior may change quickly, provider support is uneven, and some flows are still being validated in the live app.
+
+### Local browser request boundary
+
+Use the app directly on `localhost`, `127.0.0.1`, or `[::1]` at its listening port. Non-loopback peers, other Host values, forwarded/proxy headers, cross-origin requests (including `null` origins and other local ports), and cross-site Fetch Metadata are rejected before handlers run. Remote and reverse-proxy access are unsupported; do not expose this app as a shared service without implementing authentication.
+
+The UI obtains a fresh process-session token from `GET /api/local-session` before API calls. Scripts must also obtain this token and supply it as `X-Local-Session` on mutations. The bootstrap is guarded and non-cacheable. Tokens rotate when the server restarts; failed mutations are never retried automatically. This protects against browser-origin attacks, not another process already running as the local user.
+
+WebSocket clients must send the exact local HTTP Origin and the token as a `local-session.<token>` subprotocol. Tokens are not placed in request URLs.

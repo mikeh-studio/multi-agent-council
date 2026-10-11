@@ -77,10 +77,17 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+async function localSessionToken() {
+  const response = await fetch("/api/local-session", { cache: "no-store", credentials: "same-origin" });
+  if (!response.ok) throw new Error("Local session could not be established");
+  return (await response.json()).token;
+}
+
 async function fetchJson(url, options = {}) {
+  const token = await localSessionToken();
   const response = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers: { "Content-Type": "application/json", ...options.headers, "X-Local-Session": token },
   });
   if (!response.ok) {
     const error = await response.text();
@@ -2142,10 +2149,11 @@ function queueThreadChunk(event) {
 }
 
 async function connectSocket(sessionId) {
+  const token = await localSessionToken();
   closeActiveSocket();
   return new Promise((resolve) => {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/sessions/${sessionId}`);
+    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/sessions/${sessionId}`, `local-session.${token}`);
     state.socket = socket;
     let settled = false;
     const settle = () => {
