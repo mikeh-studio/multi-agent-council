@@ -1,7 +1,7 @@
 import time
 from pathlib import Path
 
-from fastapi.testclient import TestClient
+from local_client import LocalTestClient as TestClient
 
 import llm_debate_hall.main as main_module
 import llm_debate_hall.model_catalog as model_catalog

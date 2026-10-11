@@ -76,6 +76,10 @@ def _persona_generation_prompt(description: str, name_hint: str | None, family_h
 
 
 def create_app(db_path: str | None = None, personas_root: str | None = None) -> FastAPI:
+    if remote_access_enabled():
+        raise RuntimeError(
+            "Remote access is unsupported: authenticated remote access must be implemented first."
+        )
     base_dir = Path(__file__).resolve().parent
     static_dir = base_dir / "static"
     resolved_db_path = db_path or env_value("DB_PATH") or default_db_path(base_dir.parent)
@@ -91,9 +95,8 @@ def create_app(db_path: str | None = None, personas_root: str | None = None) -> 
     app.state.storage = storage
     app.state.engine = engine
     app.state.broker = broker
-    app.state.local_only = not remote_access_enabled()
-    if app.state.local_only:
-        app.add_middleware(LocalOnlyMiddleware)
+    app.state.local_only = True
+    app.add_middleware(LocalOnlyMiddleware)
 
     app.mount("/persona-icons", StaticFiles(directory=storage.persona_icons_dir), name="persona-icons")
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -694,7 +697,7 @@ def create_app(db_path: str | None = None, personas_root: str | None = None) -> 
 
     @app.websocket("/ws/sessions/{session_id}")
     async def session_ws(websocket: WebSocket, session_id: str) -> None:
-        await websocket.accept()
+        await websocket.accept(subprotocol=websocket.scope["local_session_protocol"])
         event_queue = await broker.subscribe(session_id)
         disconnect_task = asyncio.create_task(websocket.receive())
         try:

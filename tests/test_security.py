@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 
-from fastapi.testclient import TestClient
+from local_client import LocalTestClient as TestClient
 
 from llm_debate_hall.main import create_app
 from llm_debate_hall.security import LocalOnlyMiddleware, is_loopback_client
@@ -61,7 +61,7 @@ def test_default_app_does_not_grant_cross_origin_access(tmp_path: Path) -> None:
 
     response = client.get("/api/health", headers={"Origin": "https://attacker.example"})
 
-    assert response.status_code == 200
+    assert response.status_code == 403
     assert "access-control-allow-origin" not in response.headers
 
 
@@ -168,3 +168,24 @@ def test_storage_public_views_redact_environment_values(tmp_path: Path) -> None:
     assert storage.get_session(session["id"])["agents"][0]["env"] == {"TOKEN": "secret"}
     assert storage.get_public_session(session["id"])["agents"][0]["env"] == {}
     assert storage.export_session(session["id"])["agents"][0]["env_keys"] == ["TOKEN"]
+
+
+def test_remote_bypass_is_not_available(tmp_path, monkeypatch):
+    import pytest
+
+    monkeypatch.setenv("MULTI_AGENT_COUNCIL_ALLOW_REMOTE_ACCESS", "true")
+    with pytest.raises(RuntimeError, match="authenticated remote access"):
+        create_app(str(tmp_path / "never-created.db"))
+    assert not (tmp_path / "never-created.db").exists()
+
+
+def test_app_websocket_negotiates_authenticated_subprotocol(tmp_path):
+    app = create_app(str(tmp_path / "debate.db"), personas_root=str(tmp_path / "personas"))
+    with TestClient(app) as client:
+        protocol = "local-session." + client.headers["X-Local-Session"]
+        with client.websocket_connect(
+            "ws://127.0.0.1/ws/sessions/local-smoke",
+            headers={"Origin": "http://127.0.0.1"},
+            subprotocols=[protocol],
+        ) as socket:
+            assert socket.accepted_subprotocol == protocol
